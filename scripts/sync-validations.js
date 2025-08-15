@@ -17,9 +17,9 @@ if (!API_KEY) {
 // GraphQL queries and mutations
 const queries = {
   listValidations: `
-    query ListValidations($filter: ValidationRuleFilter) {
+    query ListValidations {
       validations {
-        list(filter: $filter) {
+        list {
           edges {
             node {
               id
@@ -58,16 +58,6 @@ const queries = {
     }
   `,
   
-  getLibraryId: `
-    query GetLibrary {
-      library {
-        getActive {
-          id
-          name
-        }
-      }
-    }
-  `
 };
 
 // Make GraphQL request
@@ -82,7 +72,7 @@ async function graphqlRequest(query, variables = {}) {
       headers: {
         'Content-Type': 'application/json',
         'Content-Length': data.length,
-        'Authorization': `Bearer ${API_KEY}`
+        'x-api-key': API_KEY
       }
     };
     
@@ -167,18 +157,9 @@ async function syncValidations() {
   try {
     console.log('🔄 Starting validation sync...\n');
     
-    // Get library ID
-    console.log('📚 Fetching library information...');
-    const libraryData = await graphqlRequest(queries.getLibraryId);
-    const libraryId = libraryData.library.getActive.id;
-    const libraryName = libraryData.library.getActive.name;
-    console.log(`   Library: ${libraryName} (${libraryId})\n`);
-    
-    // Get existing validations
-    console.log('📋 Fetching existing validations...');
-    const existingData = await graphqlRequest(queries.listValidations, {
-      filter: { libraryId, type: 'custom' }
-    });
+    // Get existing validations (library is resolved from API key)
+    console.log('📋 Fetching existing validations from library...');
+    const existingData = await graphqlRequest(queries.listValidations);
     
     const existingValidations = {};
     for (const edge of existingData.validations.list.edges) {
@@ -215,11 +196,10 @@ async function syncValidations() {
           });
           updated++;
         } else {
-          // Create new validation
+          // Create new validation (library is resolved from API key)
           console.log(`   ✨ Creating: ${validation.name}`);
           await graphqlRequest(queries.createValidation, {
             input: {
-              libraryId,
               name: validation.name,
               code: validation.code,
               description: validation.description,
