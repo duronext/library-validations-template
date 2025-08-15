@@ -1,0 +1,22 @@
+{
+  "name": "duro-library-validations",
+  "version": "1.0.0",
+  "description": "Custom validation rules for Duro change orders",
+  "private": true,
+  "scripts": {
+    "sync": "node scripts/sync-validations.js",
+    "test": "node scripts/test-validation.js",
+    "validate": "node scripts/validate-syntax.js"
+  },
+  "keywords": [
+    "duro",
+    "validations",
+    "change-orders",
+    "plm"
+  ],
+  "author": "",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

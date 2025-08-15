@@ -1,0 +1,46 @@
+name: Sync Validations to Duro
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'validations/**'
+      - 'scripts/sync-validations.js'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  sync:
+    name: Sync Validations
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Sync validations to Duro
+        env:
+          DURO_LIBRARY_API_KEY: ${{ secrets.DURO_LIBRARY_API_KEY }}
+        run: |
+          echo "🔄 Starting validation sync..."
+          node scripts/sync-validations.js
+          
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Validation Sync Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ $? -eq 0 ]; then
+            echo "✅ **Status**: Success" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Status**: Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Repository**: ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by**: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
