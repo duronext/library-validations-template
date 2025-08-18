@@ -66,13 +66,16 @@ async function graphqlRequest(query, variables = {}) {
   return new Promise((resolve, reject) => {
     const data = JSON.stringify({ query, variables });
     
+    // Use Buffer.byteLength for accurate byte count (important for UTF-8)
+    const byteLength = Buffer.byteLength(data, 'utf8');
+    
     const options = {
       hostname: 'api.durohub.com',
       path: '/graphql',
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Content-Length': data.length,
+        'Content-Length': byteLength,
         'x-api-key': API_KEY
       }
     };
