@@ -1,4 +1,3 @@
-// @onFailure WARNING
 exports.validate = async function(data) {
   const { change_order } = data;
   
