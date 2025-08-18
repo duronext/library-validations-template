@@ -18,9 +18,21 @@ Click "Use this template" on GitHub to create your own repository, or fork this 
 
 **Note**: The API key automatically provides library context - validations will be synced to the library associated with your API key.
 
-### 3. Create Your First Validation
+### 3. Configure Your Validations
 
-Create a new JavaScript file in the `validations/` directory:
+Edit the `validations.yaml` file to define your validations:
+
+```yaml
+validations:
+  - name: "reject-draft-components"
+    description: "Blocks submission if draft components exist"
+    version: "1.0.0"
+    isActive: true
+    onFailure: error  # or warning
+    path: validations/reject-draft-components.js
+```
+
+Then create the corresponding JavaScript file:
 
 ```javascript
 // validations/reject-draft-components.js
@@ -65,6 +77,7 @@ your-validations-repo/
 │   └── sync-validations.js
 ├── .github/workflows/     # GitHub Actions (don't modify)
 │   └── sync-validations.yml
+├── validations.yaml      # Validation configuration
 ├── README.md             # This file
 ├── CLAUDE.md             # AI assistance guide
 └── package.json
@@ -90,26 +103,69 @@ exports.validate = async function(data) {
 
 ### Available Data
 
-Your validation receives a `data` object with:
+Your validation receives a rich `data` object with comprehensive information:
 
 ```javascript
 {
   change_order: {
-    id: string,
-    name: string,
-    description: string,
-    status: string,
-    libraryId: string
+    // Basic fields
+    id: string,           // Unique identifier (UUID)
+    name: string,         // Change order name/title
+    description: string,  // Detailed description (can be null)
+    status: string,       // 'draft' | 'open' | 'resolved' | 'closed' | 'on_hold'
+    resolution: string,   // 'pending' | 'approved' | 'rejected' | 'withdrawn'
+    libraryId: string,    // Library identifier (UUID)
+    isValid: boolean,     // Current validation state
+    
+    // Timestamps & users
+    createdAt: Date,
+    updatedAt: Date,
+    createdBy: { id, name, primaryEmail },
+    updatedBy: { id, name, primaryEmail },
+    
+    // Custom fields & approval stages (if configured)
+    contents: [...],      // Dynamic form fields
+    stages: [...]         // Approval workflow stages with reviewers
   },
-  components: [
+  items: [
     {
-      id: string,
+      // Change order item fields
+      id: string,           // Change order item ID
+      itemId: string,       // Component ID
+      itemVersion: number,  // Version being changed
+      proposedRevision: string,    // New revision
+      proposedStatusId: string,    // New status ID
+      
+      // Component data
       name: string,
-      // ... other component fields
+      description: string,
+      type: string,
+      
+      // Status & category
+      status: { id, name, mapsTo, color },
+      category: { id, name },
+      
+      // Version control
+      version: number,
+      revisionValue: string,
+      state: 'RELEASED' | 'MODIFIED',
+      
+      // Proposed changes
+      proposedStatus: { id, name },
+      
+      // Custom attributes
+      attributeValues: { ... }
     }
   ]
 }
 ```
+
+**See [RICH_VALIDATION_DATA.md](./RICH_VALIDATION_DATA.md) for complete data structure and advanced examples.**
+
+#### Quick Status Reference
+- **Change Order Status**: `draft`, `open`, `resolved`, `closed`, `on_hold`
+- **Resolution**: `pending`, `approved`, `rejected`, `withdrawn`
+- **Component State**: `RELEASED`, `MODIFIED`
 
 ### Console Logging
 
@@ -120,36 +176,58 @@ All console outputs are captured and displayed in validation results:
 - `console.warn()` - Warnings
 - `console.error()` - Error messages
 
-### File Naming
+### Validation Configuration
 
-The filename (without `.js`) becomes the validation name:
-- `validations/check-quantities.js` → Validation name: "check-quantities"
-- `validations/enforce-naming-convention.js` → Validation name: "enforce-naming-convention"
+Validations are configured in `validations.yaml`. Each entry defines:
+- `name`: Unique identifier for the validation
+- `description`: Human-readable description
+- `version`: Semantic version for tracking changes
+- `isActive`: Enable/disable the validation
+- `onFailure`: How to handle failures (`error` or `warning`)
+- `path`: Path to the JavaScript file
+
+Validation files can be organized in subdirectories:
+- `validations/core/check-quantities.js`
+- `validations/custom/enforce-naming.js`
 
 ## 🔄 How Syncing Works
 
 1. **On Push to Main**: GitHub Actions triggers the sync workflow
 2. **Library Context**: Uses your API key to determine the target library
-3. **List Existing**: Fetches all current validations from your library
-4. **Compare**: Matches local files with existing validations by name
-5. **Upsert**: Updates existing validations or creates new ones
-6. **Activate**: All synced validations are set to active
+3. **Read Config**: Loads validation definitions from `validations.yaml`
+4. **Validate**: Ensures all referenced files exist and are valid
+5. **List Existing**: Fetches all current validations from your library
+6. **Compare**: Matches configured validations with existing ones by name
+7. **Sync**:
+   - Creates new validations defined in config
+   - Updates existing validations if changed
+   - Deactivates API validations not in config (mirror sync)
+8. **Version Tracking**: Updates are made when version or content changes
 
 ## ⚙️ Validation Settings
 
-Default settings for all validations:
-- **Type**: `custom`
-- **onFailure**: `ERROR` (blocks submission)
-- **isActive**: `true`
-- **Version**: `1.0.0`
+All validation settings are managed in `validations.yaml`:
 
-To use WARNING mode (non-blocking), add a comment at the top of your file:
-```javascript
-// @onFailure WARNING
-exports.validate = async function(data) {
-  // This validation will show warnings but won't block submission
-}
+```yaml
+validations:
+  - name: "validation-name"
+    description: "What this validation checks"
+    version: "1.0.0"        # Semantic versioning
+    isActive: true          # Enable/disable
+    onFailure: error        # error = blocks, warning = non-blocking
+    path: validations/file.js
 ```
+
+### Version Management
+Increment the version when making changes:
+- **Patch** (1.0.1): Bug fixes, minor tweaks
+- **Minor** (1.1.0): New features, non-breaking changes
+- **Major** (2.0.0): Breaking changes
+
+### Mirror Sync Behavior
+Validations that exist in the API but not in `validations.yaml` will be:
+- Set to `isActive: false` (deactivated)
+- Never deleted (preserving history)
 
 ## 🧪 Testing Locally
 
@@ -168,6 +246,17 @@ Use Claude Code to generate validations! See [CLAUDE.md](./CLAUDE.md) for exampl
 
 ### Check Item Quantities
 
+First, add to `validations.yaml`:
+```yaml
+- name: "check-quantities"
+  description: "Ensures all items have valid quantities"
+  version: "1.0.0"
+  isActive: true
+  onFailure: error
+  path: validations/check-quantities.js
+```
+
+Then create the validation:
 ```javascript
 // validations/check-quantities.js
 exports.validate = async function(data) {
@@ -191,9 +280,19 @@ exports.validate = async function(data) {
 
 ### Enforce Naming Convention
 
+Add to `validations.yaml`:
+```yaml
+- name: "enforce-naming-convention"
+  description: "Warns if naming convention not followed"
+  version: "1.0.0"
+  isActive: true
+  onFailure: warning  # Non-blocking
+  path: validations/enforce-naming-convention.js
+```
+
+Create the validation:
 ```javascript
 // validations/enforce-naming-convention.js
-// @onFailure WARNING
 exports.validate = async function(data) {
   const { change_order } = data;
   
@@ -212,6 +311,17 @@ exports.validate = async function(data) {
 
 ### Limit Total Items
 
+Add to `validations.yaml`:
+```yaml
+- name: "limit-total-items"
+  description: "Limits maximum number of items"
+  version: "1.0.0"
+  isActive: true
+  onFailure: error
+  path: validations/limit-total-items.js
+```
+
+Create the validation:
 ```javascript
 // validations/limit-total-items.js
 exports.validate = async function(data) {
@@ -251,10 +361,12 @@ Check the Actions tab in GitHub for error details. Common issues:
 ### Validation Not Running
 
 Ensure:
-- File is in `validations/` directory
-- File has `.js` extension
+- Validation is defined in `validations.yaml`
+- `isActive` is set to `true`
+- File path in config is correct
 - File exports a `validate` function
 - Push was to the `main` branch
+- No syntax errors in YAML config
 
 ## 📖 Resources
 
