@@ -1,0 +1,40 @@
+# Duro Library Validations Configuration
+# 
+# This file defines all validations that will be synced to your Duro library.
+# Each validation entry controls:
+#   - name: The unique identifier for the validation
+#   - description: Human-readable description of what the validation does
+#   - version: Semantic version number for tracking changes
+#   - isActive: Whether the validation is enabled in your library
+#   - onFailure: How to handle validation failures (error or warning)
+#   - path: Path to the JavaScript file containing the validation code
+#
+# The sync process will:
+#   1. Create or update all validations defined here
+#   2. Set any validations that exist in the API but not in this file to isActive: false
+#   3. Never delete validations from your library
+
+validations:
+  # Example validation that checks for test phrases (WARNING mode)
+  - name: "warn-test-phrase"
+    description: "Warns when 'test' appears in change order name or description"
+    version: "1.0.0"
+    isActive: true
+    onFailure: warning
+    path: validations/warn-test-phrase.js
+
+  # Example validation with basic structure
+  - name: "example-validation"
+    description: "Example validation showing basic structure"
+    version: "1.0.0"
+    isActive: true
+    onFailure: error
+    path: validations/example-validation.js
+
+  # Template for adding new validations:
+  # - name: "validation-name"
+  #   description: "What this validation checks"
+  #   version: "1.0.0"
+  #   isActive: true
+  #   onFailure: error    # or warning
+  #   path: validations/your-validation.js
