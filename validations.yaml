@@ -31,6 +31,14 @@ validations:
     onFailure: error
     path: validations/example-validation.js
 
+  # Validation that checks for revision sequence jumps
+  - name: "Revision Sequence Check"
+    description: "Warns when proposed revisions skip numbers (e.g., jumping from revision 1 to 3)"
+    version: "1.0.0"
+    isActive: true
+    onFailure: warning
+    path: validations/revision-sequence-check.js
+
   # Template for adding new validations:
   # - name: "validation-name"
   #   description: "What this validation checks"
