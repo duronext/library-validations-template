@@ -39,6 +39,13 @@ validations:
     onFailure: warning
     path: validations/ai-summary.js
 
+  # Capacitor Design Status Check
+  - name: "Capacitor Design Status Check"
+    description: "Blocks change orders containing capacitors in Design status"
+    version: "1.0.0"
+    isActive: true
+    onFailure: error
+    path: validations/capacitor-design-check.js
 
   # Template for adding new validations:
   # - name: "validation-name"
