@@ -47,6 +47,14 @@ validations:
     onFailure: error
     path: validations/capacitor-design-check.js
 
+  # Capacitors are bad validation
+  - name: "capacitors are bad"
+    description: "Blocks all change orders containing any capacitor components"
+    version: "1.0.0"
+    isActive: true
+    onFailure: error
+    path: validations/capacitors-are-bad.js
+
   # Template for adding new validations:
   # - name: "validation-name"
   #   description: "What this validation checks"
