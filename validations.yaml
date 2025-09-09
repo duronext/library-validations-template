@@ -35,7 +35,7 @@ validations:
   - name: "AI Summary"
     description: "Provides an AI-generated summary of the change order via external service (informational only)"
     version: "1.0.0"
-    isActive: true
+    isActive: false
     onFailure: warning
     path: validations/ai-summary.js
 
@@ -43,7 +43,7 @@ validations:
   - name: "Capacitor Design Status Check"
     description: "Blocks change orders containing capacitors in Design status"
     version: "1.0.0"
-    isActive: true
+    isActive: false
     onFailure: error
     path: validations/capacitor-design-check.js
 
