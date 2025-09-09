@@ -51,7 +51,7 @@ validations:
   - name: "capacitors are bad"
     description: "Blocks all change orders containing any capacitor components"
     version: "1.0.0"
-    isActive: true
+    isActive: false
     onFailure: error
     path: validations/capacitors-are-bad.js
 
