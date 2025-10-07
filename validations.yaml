@@ -55,6 +55,14 @@ validations:
     onFailure: error
     path: validations/capacitors-are-bad.js
 
+  # Auto Failure
+  - name: "the failure option"
+    description: 'failure is always an option'
+    version: "1.0.0"
+    isActive: true
+    onFailure: error
+    path: validations/auto-fail.js
+
   # Template for adding new validations:
   # - name: "validation-name"
   #   description: "What this validation checks"

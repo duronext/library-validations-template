@@ -3,15 +3,47 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const http = require('http');
+const url = require('url');
 const yaml = require('js-yaml');
 
-// Configuration
-const API_URL = 'https://api.durohub.com/graphql';
+// Load environment variables from .env.local if it exists
+const envPath = path.join(__dirname, '..', '.env.local');
+if (fs.existsSync(envPath)) {
+  console.log('📁 Loading local environment from .env.local');
+  const envContent = fs.readFileSync(envPath, 'utf8');
+  envContent.split('\n').forEach(line => {
+    const trimmedLine = line.trim();
+    if (trimmedLine && !trimmedLine.startsWith('#')) {
+      const [key, ...valueParts] = trimmedLine.split('=');
+      const value = valueParts.join('=');
+      if (key && value) {
+        process.env[key.trim()] = value.trim();
+      }
+    }
+  });
+}
+
+// Configuration with fallbacks
+const API_URL = process.env.DURO_API_URL || 'https://api.durohub.com/graphql';
 const API_KEY = process.env.DURO_LIBRARY_API_KEY;
 const CONFIG_FILE = path.join(__dirname, '..', 'validations.yaml');
 
+// Parse the API URL to extract components
+const parsedUrl = url.parse(API_URL);
+const isHTTPS = parsedUrl.protocol === 'https:';
+const hostname = parsedUrl.hostname;
+const port = parsedUrl.port || (isHTTPS ? 443 : 80);
+const apiPath = parsedUrl.pathname || '/graphql';
+
+console.log(`🔧 Using API: ${API_URL}`);
+console.log(`   Protocol: ${isHTTPS ? 'HTTPS' : 'HTTP'}`);
+console.log(`   Host: ${hostname}:${port}`);
+console.log(`   Path: ${apiPath}\n`);
+
 if (!API_KEY) {
-  console.error('Error: DURO_LIBRARY_API_KEY environment variable is not set');
+  console.error('Error: DURO_LIBRARY_API_KEY not set in environment or .env.local');
+  console.error('Please set DURO_LIBRARY_API_KEY environment variable or create .env.local file');
   process.exit(1);
 }
 
@@ -65,13 +97,14 @@ const queries = {
 async function graphqlRequest(query, variables = {}) {
   return new Promise((resolve, reject) => {
     const data = JSON.stringify({ query, variables });
-    
+
     // Use Buffer.byteLength for accurate byte count (important for UTF-8)
     const byteLength = Buffer.byteLength(data, 'utf8');
-    
+
     const options = {
-      hostname: 'api.durohub.com',
-      path: '/graphql',
+      hostname: hostname,
+      port: port,
+      path: apiPath,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -79,14 +112,17 @@ async function graphqlRequest(query, variables = {}) {
         'x-api-key': API_KEY
       }
     };
-    
-    const req = https.request(options, (res) => {
+
+    // Choose the appropriate protocol module
+    const protocolModule = isHTTPS ? https : http;
+
+    const req = protocolModule.request(options, (res) => {
       let responseData = '';
-      
+
       res.on('data', (chunk) => {
         responseData += chunk;
       });
-      
+
       res.on('end', () => {
         try {
           const parsed = JSON.parse(responseData);
@@ -96,15 +132,15 @@ async function graphqlRequest(query, variables = {}) {
             resolve(parsed.data);
           }
         } catch (e) {
-          reject(new Error(`Failed to parse response: ${e.message}`));
+          reject(new Error(`Failed to parse response: ${e.message}\nResponse: ${responseData}`));
         }
       });
     });
-    
+
     req.on('error', (e) => {
       reject(new Error(`Request failed: ${e.message}`));
     });
-    
+
     req.write(data);
     req.end();
   });
