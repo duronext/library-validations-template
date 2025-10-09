@@ -6,12 +6,12 @@ exports.validate = async function(data) {
     console.info('No "fail" phrase detected in change order description');
     return {
       valid: true,
-      message: `failure is always an option when describing "failure" in a change order: ${change_order.description} - please verify this is intended `
+      message: `"fail" is not detected in the description for change order: ${change_order.name}`
     }
   }
   console.error('Failing because we can');
   return {
     valid: false,
-    message: `failure is always an option when describing "failure" in a change order: ${change_order.description} - please verify this is intended `
+    message: `failure is always an option when describing "failure" in a change order: ${change_order.name} - please verify this is intended `
   }
 }
