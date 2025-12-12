@@ -98,6 +98,127 @@ All console outputs are captured:
 - `console.warn()` - Yellow warnings
 - `console.error()` - Red error messages
 
+## Linking Components in Messages (Recommended)
+
+Duro supports a **markdown-inspired syntax** for creating clickable links in validation messages. When you reference components, change orders, or users in your logs, use this syntax to make them clickable in the Duro UI.
+
+### Syntax Format
+```
+[display text](protocol:type/id)
+```
+
+### Supported Link Types
+
+| Entity | Syntax | Example |
+|--------|--------|---------|
+| Component | `[text](item:component/id)` | `[CAP-001](item:component/abc-123)` |
+| Assembly | `[text](item:assembly/id)` | `[Main Assembly](item:assembly/xyz-789)` |
+| PCBA | `[text](item:pcba/id)` | `[Board Rev A](item:pcba/pcb-456)` |
+| Change Order | `[text](co:changeorder/id)` | `[ECO-2024-001](co:changeorder/co-123)` |
+| User | `[text](user:profile/id)` | `[John Smith](user:profile/user-456)` |
+| Library | `[text](lib:library/id)` | `[Main Library](lib:library/lib-789)` |
+
+### Helper Functions
+
+Create these helper functions in your validation for clean, consistent links:
+
+```javascript
+// Helper to create component links
+function componentLink(item) {
+  const display = item.name || item.eid || item.itemId;
+  return `[${display}](item:component/${item.itemId})`;
+}
+
+// Helper to create change order links
+function changeOrderLink(changeOrder) {
+  const display = changeOrder.name || changeOrder.id;
+  return `[${display}](co:changeorder/${changeOrder.id})`;
+}
+
+// Helper to create user links
+function userLink(user) {
+  return `[${user.name}](user:profile/${user.id})`;
+}
+```
+
+### Example: Logging Components with Links
+
+**Before (plain text):**
+```javascript
+console.error(`Component ${item.name} has invalid quantity`);
+```
+
+**After (with clickable links):**
+```javascript
+const link = `[${item.name}](item:component/${item.itemId})`;
+console.error(`Component ${link} has invalid quantity`);
+```
+
+### Complete Validation Example with Links
+
+```javascript
+exports.validate = async function(data) {
+  const { change_order, items } = data;
+
+  // Helper function for component links
+  function componentLink(item) {
+    const display = item.name || item.eid || item.itemId;
+    return `[${display}](item:component/${item.itemId})`;
+  }
+
+  const invalidItems = [];
+
+  for (const item of items) {
+    if (!item.description || item.description.trim() === '') {
+      invalidItems.push(item);
+      // Log with clickable link
+      console.error(`${componentLink(item)} is missing a description`);
+    }
+  }
+
+  if (invalidItems.length > 0) {
+    // Create linked list in error message
+    const linkedNames = invalidItems
+      .map(item => componentLink(item))
+      .join(', ');
+
+    return {
+      valid: false,
+      message: `${invalidItems.length} components missing descriptions: ${linkedNames}`
+    };
+  }
+
+  console.info('All components have descriptions');
+  return { valid: true, message: 'Description check passed' };
+}
+```
+
+### Best Practices for Linked Messages
+
+1. **Always link components** - When referencing a component, use the link syntax so users can click to navigate
+2. **Use descriptive display text** - Show the component name/CPN rather than just the ID
+3. **Keep messages readable** - Links should read naturally even as plain text
+4. **Format status with markdown** - Use `**BOLD**` for emphasis: `**RELEASED**`
+5. **Combine multiple links** - You can have multiple links in one message
+
+```javascript
+// Good: Multiple links in one message
+console.error(
+  `Item ${componentLink(item)} conflicts with change order ${changeOrderLink(existingCO)}`
+);
+
+// Good: Bold formatting for status
+console.info(`Component ${componentLink(item)} is **${item.status.name.toUpperCase()}**`);
+```
+
+### Fallback Behavior
+
+Messages with links remain fully readable as plain text. If the UI doesn't support link parsing, users will see:
+```
+[CAP-001](item:component/abc-123) is missing a description
+```
+Which is still informative, just not clickable.
+
 ## Example Prompts for Claude Code
 
 ### Basic Validations
@@ -122,22 +243,35 @@ All console outputs are captured:
 
 ## Validation Patterns
 
+### Helper Function (Use in All Validations)
+```javascript
+// Add this helper at the top of your validation
+function componentLink(item) {
+  const display = item.name || item.eid || item.itemId;
+  return `[${display}](item:component/${item.itemId})`;
+}
+```
+
 ### Checking Component Properties
 ```javascript
-// Check all components have a specific property
-const missingProperty = components.filter(c => !c.someProperty);
+// Check all items have a specific property
+const missingProperty = items.filter(item => !item.someProperty);
 if (missingProperty.length > 0) {
+  // Log each with clickable link
+  missingProperty.forEach(item => {
+    console.error(`${componentLink(item)} is missing required property`);
+  });
   return {
     valid: false,
-    message: `${missingProperty.length} components missing required property`
+    message: `${missingProperty.length} components missing required property: ${missingProperty.map(componentLink).join(', ')}`
   };
 }
 ```
 
 ### Aggregating Values
 ```javascript
-// Sum quantities across components
-const totalQuantity = components.reduce((sum, c) => sum + (c.quantity || 0), 0);
+// Sum quantities across items
+const totalQuantity = items.reduce((sum, item) => sum + (item.attributeValues?.quantity || 0), 0);
 if (totalQuantity > MAX_ALLOWED) {
   return {
     valid: false,
@@ -160,14 +294,17 @@ if (!pattern.test(change_order.name)) {
 
 ### Status Checks
 ```javascript
-// Verify component statuses
-const invalidStatuses = components.filter(c =>
-  !['approved', 'released'].includes(c.status)
+// Verify item statuses with linked output
+const invalidStatuses = items.filter(item =>
+  !['approved', 'released'].includes(item.status?.name?.toLowerCase())
 );
 if (invalidStatuses.length > 0) {
+  invalidStatuses.forEach(item => {
+    console.error(`${componentLink(item)} has invalid status: **${item.status?.name || 'none'}**`);
+  });
   return {
     valid: false,
-    message: `${invalidStatuses.length} components have invalid status`
+    message: `${invalidStatuses.length} components have invalid status: ${invalidStatuses.map(componentLink).join(', ')}`
   };
 }
 ```
@@ -228,11 +365,13 @@ exports.validate = async function(data) {
 5. **Provide Context**: Explain the business reason if relevant
 6. **Include Examples**: Give example data that should pass/fail
 7. **Request Logging**: Ask for console logging for debugging
+8. **Use Component Links**: Always use `[name](item:component/id)` syntax when referencing components in logs and messages
 
 Claude Code will automatically:
 - Update `validations.yaml` with your configuration
 - Create the JavaScript file at the specified path
 - Set appropriate metadata based on your requirements
+- **Use markdown-link syntax for component references in logs and error messages**
 
 ## Example Full Prompt
 
@@ -247,22 +386,27 @@ Claude Code will automatically:
 
 ## Debugging Tips
 
-1. Use console logging liberally:
+1. Use console logging with **component links** for clickable navigation:
 ```javascript
-console.info(`Checking ${components.length} components`);
-console.log('Component statuses:', components.map(c => c.status));
+function componentLink(item) {
+  return `[${item.name || item.itemId}](item:component/${item.itemId})`;
+}
+
+console.info(`Checking ${items.length} components`);
+console.log(`Processing ${componentLink(item)}`);
 ```
 
 2. Test with edge cases:
-- Empty components array
+- Empty items array
 - Missing properties
 - Null/undefined values
 
-3. Provide clear error messages:
+3. Provide clear error messages **with links**:
 ```javascript
+const link = `[${item.name}](item:component/${item.itemId})`;
 return {
   valid: false,
-  message: `Component "${component.name}" (ID: ${component.id}) has invalid quantity: ${component.quantity}`
+  message: `Component ${link} has invalid quantity: ${item.attributeValues?.quantity}`
 };
 ```
 
