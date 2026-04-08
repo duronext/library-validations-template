@@ -123,7 +123,17 @@ This document describes the complete data structure available to custom validati
       categoryId: string,          // Category UUID
       category: {
         id: string,                // Category UUID
-        name: string               // Category name
+        name: string,              // Category name
+        attributes: [              // NEW: attribute definitions
+          {
+            id: string,            // Attribute UUID
+            name: string,          // Human-readable name (e.g., "Manufacturer")
+            type: string,          // STRING, NUMBER, URL, EMAIL, PHONE, DATE, BOOLEAN, LIST, etc.
+            source: string,        // USER, SYSTEM, or INTEGRATION
+            sourceKey: string,     // System key (e.g., "cost", "mass") or null for user attrs
+            unit: string           // Default unit (e.g., "g", "USD") or null
+          }
+        ]
       },
       
       // Version and Revision
@@ -137,9 +147,19 @@ This document describes the complete data structure available to custom validati
       createdAt: Date,             // When component was created
       updatedAt: Date,             // When component was last updated
       
-      // Custom Attributes
+      // Custom Attributes (Legacy — UUID-keyed, backward compatible)
       attributeValues: {          // Key-value pairs of custom attributes
         [key: string]: any
+      },
+
+      // Human-readable Attributes (NEW)
+      // Name-keyed map — all category attributes included, null if unset
+      attributes: {
+        [attributeName: string]: any  // Key is attribute name, not UUID
+        // Simple types: unwrapped primitive (e.g., "Acme Co", true, 42)
+        // Measured numbers: { value: string, unit: string } (e.g., { value: "25", unit: "g" })
+        // Currency: { value: number, unit: string } (e.g., { value: 42.50, unit: "USD" })
+        // Unset: null
       },
       
       // Proposed status details
@@ -355,26 +375,37 @@ exports.validate = async function(data) {
   const { items } = data;
   
   for (const item of items) {
-    // Check custom attributes
-    const attributes = item.attributeValues || {};
+    // Access attributes by name — no UUID lookups needed
+    const manufacturer = item.attributes['Manufacturer'];
+    const supportPhone = item.attributes['Support Phone'];
     
-    // Example: Validate RoHS compliance for electronic components
-    if (item.category?.name === 'Electronics') {
-      if (!attributes.rohs_compliant || attributes.rohs_compliant !== 'yes') {
+    // Example: Acme Co parts must have a support phone
+    if (manufacturer === 'Acme Co' && !supportPhone) {
+      return {
+        valid: false,
+        message: `${item.name}: Acme Co parts require a Support Phone number`
+      };
+    }
+    
+    // Example: Check measured values
+    const mass = item.attributes['Mass'];
+    if (mass && parseFloat(mass.value) > 1000) {
+      console.warn(`${item.name} exceeds 1kg: ${mass.value}${mass.unit}`);
+    }
+    
+    // Example: Iterate all attributes to find missing required ones
+    const requiredAttrs = ['Manufacturer', 'Part Number'];
+    for (const attrName of requiredAttrs) {
+      if (item.attributes[attrName] === null) {
         return {
           valid: false,
-          message: `Electronic component ${item.name} must be RoHS compliant`
+          message: `${item.name} is missing required attribute: ${attrName}`
         };
       }
     }
-    
-    // Example: Validate supplier information
-    if (!attributes.supplier || !attributes.supplier_part_number) {
-      console.warn(`Component ${item.name} missing supplier information`);
-    }
   }
   
-  return { valid: true };
+  return { valid: true, message: 'All attribute checks passed' };
 }
 ```
 
@@ -385,8 +416,9 @@ exports.validate = async function(data) {
   
   // Complex rule: High-value changes need special approval
   const totalValue = items.reduce((sum, item) => {
-    const unitCost = item.attributeValues?.unit_cost || 0;
-    const quantity = item.attributeValues?.quantity || 0;
+    const costObj = item.attributes?.['Cost'];
+    const unitCost = typeof costObj === 'object' ? costObj?.value || 0 : costObj || 0;
+    const quantity = item.attributes?.['Quantity'] || 0;
     return sum + (unitCost * quantity);
   }, 0);
   

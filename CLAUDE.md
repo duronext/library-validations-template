@@ -78,6 +78,7 @@ Each item combines change order item data with component information:
 - `status`: Object - Current status with id, name, mapsTo, color
 - `statusId`: string - Current status ID
 - `category`: Object - Category with id, name
+- `category.attributes`: Array - Attribute definitions for this category. Each entry has: id, name, type, source, sourceKey, unit
 - `categoryId`: string - Category ID
 - `version`: number - Component version number
 - `revisionValue`: string - Current revision (e.g., "A", "B")
@@ -86,9 +87,48 @@ Each item combines change order item data with component information:
 - `releasedAt`: Date - When component was released
 - `createdAt`: Date - When component was created
 - `updatedAt`: Date - When component was last updated
-- `attributeValues`: Object - Custom attributes as key-value pairs
+- `attributeValues`: Object - Custom attributes as key-value pairs (UUID-keyed, backward compatible)
+- `attributes`: Object - **Human-readable attribute values keyed by name** (e.g., `item.attributes['Manufacturer']`). All category attributes are included; unset ones are `null`. Simple values are unwrapped primitives. Measured values are `{ value, unit }`. Currency values are `{ value, unit }`.
 
 **See [RICH_VALIDATION_DATA.md](./RICH_VALIDATION_DATA.md) for complete structure and advanced validation examples.**
+
+## Accessing Component Attributes
+
+Each item has two ways to access attribute data:
+
+### By Name (Recommended)
+```javascript
+// Direct access by attribute name — clean and readable
+const manufacturer = item.attributes['Manufacturer'];        // "Acme Co" or null
+const mass = item.attributes['Mass'];                        // { value: "25", unit: "g" } or null
+const cost = item.attributes['Cost'];                        // { value: 42.50, unit: "USD" } or null
+const phone = item.attributes['Support Phone'];              // "+1-555-0123" or null
+```
+
+### By UUID (Legacy)
+```javascript
+// Raw storage format — UUIDs as keys, wrapped values
+const value = item.attributeValues['149521a0-...']?.value;   // requires knowing the UUID
+```
+
+### Checking Attribute Definitions
+```javascript
+// See what attributes exist on the category
+for (const attr of item.category.attributes) {
+  console.info(`${attr.name} (${attr.type}): ${JSON.stringify(item.attributes[attr.name])}`);
+}
+```
+
+### Value Shapes by Type
+
+| Attribute Type | Example `item.attributes['Name']` |
+|---------------|-----------------------------------|
+| STRING, URL, EMAIL, PHONE, DATE, BOOLEAN | `"Acme Co"` (unwrapped primitive) |
+| NUMBER (simple) | `42` (unwrapped number) |
+| NUMBER (measured — mass, length) | `{ value: "25", unit: "g" }` |
+| NUMBER (currency) | `{ value: 42.50, unit: "USD" }` |
+| LIST | `"Each"` (unwrapped string) |
+| Unset | `null` |
 
 ## Console Logging
 
@@ -271,7 +311,7 @@ if (missingProperty.length > 0) {
 ### Aggregating Values
 ```javascript
 // Sum quantities across items
-const totalQuantity = items.reduce((sum, item) => sum + (item.attributeValues?.quantity || 0), 0);
+const totalQuantity = items.reduce((sum, item) => sum + (item.attributes?.['Quantity'] || 0), 0);
 if (totalQuantity > MAX_ALLOWED) {
   return {
     valid: false,
@@ -351,7 +391,7 @@ exports.validate = async function(data) {
 **Prompt**: "Create a validation called 'require-descriptions' that ensures all components have a description"
 
 ### 6. Business Rules
-**Prompt**: "Create a validation called 'weekday-only' that prevents submission on weekends"
+**Prompt**: "Create a validation called 'manufacturer-check' that blocks submission if any component from manufacturer 'Acme Co' is missing a Support Phone attribute"
 
 ### 7. Cross-Reference Checks
 **Prompt**: "Create a validation called 'unique-names' that ensures no duplicate component names"
